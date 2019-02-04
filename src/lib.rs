@@ -112,10 +112,10 @@ impl Sudoku {
     }
 
     pub fn solved(&self) -> Option<Sudoku> {
-        // remove conflicts until the grid settles
-        let (mut solution, mut changed) = self.without_conflicts()?;
+        // simplify the sudoku until it settles
+        let (mut solution, mut changed) = self.simplified()?;
         while changed {
-            let (s, c) = solution.without_conflicts()?;
+            let (s, c) = solution.simplified()?;
             solution = s;
             changed = c;
         }
@@ -124,7 +124,8 @@ impl Sudoku {
             return Some(solution);
         }
 
-        // process cells with fewest possible digits first
+        // process cells with fewest possible digits first as it's more probable
+        // we'll get those right
         let (r, c, cell) = solution
             .cells
             .iter()
@@ -146,11 +147,25 @@ impl Sudoku {
         })
     }
 
+    /// Simplify the grid as much as possible by first removing all digits that
+    /// cannot be in a position because they must be in another one for sure and
+    /// then by searching for digits that can only be in a position. Returns
+    /// `None` if the sudoku is impossible, otherwise the simplified sudoku and
+    /// whether the sudoku changed or not.
+    fn simplified(&self) -> Option<(Sudoku, bool)> {
+        let (mut sudoku, mut changed) = self.without_conflicts()?;
+
+        changed = sudoku.find_unambiguities() || changed;
+
+        Some((sudoku, changed))
+    }
+
+    /// Create a new sudoku where all the cells do not contain digits that
+    /// cannot be there.
     fn without_conflicts(&self) -> Option<(Sudoku, bool)> {
         let mut new = self.clone();
         let mut changed = false;
 
-        // remove fixed digits from possible digits first
         for r in 0..9 {
             let row = self.row(r);
 
@@ -189,29 +204,60 @@ impl Sudoku {
             }
         }
 
-        // TODO: do the same for cols and quads
-        // for i in 0..9 {
-        //     for d in 0..9 {
-        //         let mut digit_ix = None;
-        //         for j in 0..9 {
-        //             if new.cells[i][j].has_digit(d) {
-        //                 match digit_ix {
-        //                     None => digit_ix = Some(j),
-        //                     Some(_) => {
-        //                         digit_ix = None;
-        //                         break;
-        //                     }
-        //                 };
-        //             }
-        //         }
-
-        //         if let Some(j) = digit_ix {
-        //             new.cells[i][j] = Cell::from_digit(d).unwrap();
-        //         }
-        //     }
-        // }
-
         Some((new, changed))
+    }
+
+    /// Replace each cell with only the digit that can be in that position by
+    /// looking at the row, column and quadrant.
+    fn find_unambiguities(&mut self) -> bool {
+        let mut changed = false;
+
+        for i in 0..9 {
+            for d in 1..=9 {
+                changed = self.find_unambiguity(d, (0..9).map(|c| (i, c))) || changed;
+                changed = self.find_unambiguity(d, (0..9).map(|r| (r, i))) || changed;
+
+                let qr = i / 3 * 3;
+                let qc = i / 3 * 3;
+                changed =
+                    self.find_unambiguity(d, (0..9).map(|i| (qr + i / 3, qc + i % 3))) || changed;
+            }
+        }
+
+        changed
+    }
+
+    fn find_unambiguity(&mut self, d: u16, rng: impl IntoIterator<Item = (usize, usize)>) -> bool {
+        let mut changed = false;
+        let mut digit_ix = None;
+
+        for (r, c) in rng.into_iter() {
+            if !self.cells[r][c].has_digit(d) {
+                continue;
+            }
+
+            // there's already a fixed cell with this digit therefore
+            // there's nothing better we could do
+            if self.cells[r][c].len() == 1 {
+                digit_ix = None;
+                break;
+            }
+
+            match digit_ix {
+                None => digit_ix = Some((r, c)),
+                Some(_) => {
+                    digit_ix = None;
+                    break;
+                }
+            };
+        }
+
+        if let Some((r, c)) = digit_ix {
+            self.cells[r][c] = Cell::from_digit(d).unwrap();
+            changed = true;
+        }
+
+        changed
     }
 
     pub fn row(&self, r: usize) -> [Cell; 9] {
