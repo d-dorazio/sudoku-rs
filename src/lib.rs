@@ -27,7 +27,7 @@ impl Cell {
     }
 
     pub fn has_digit(&self, d: u16) -> bool {
-        self.digits >> d == 1
+        (self.digits >> d) & 0x1 == 1
     }
 
     // pub fn add_digit(&mut self, d: u16) {
