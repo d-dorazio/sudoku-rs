@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Cell {
     digits: u16,
 }
@@ -39,7 +39,7 @@ impl Cell {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Sudoku {
     cells: [[Cell; 9]; 9],
 }
@@ -60,6 +60,20 @@ impl Sudoku {
         }
 
         Some(Sudoku { cells })
+    }
+
+    pub fn to_line(&self) -> String {
+        self.cells
+            .iter()
+            .flat_map(|r| r.iter())
+            .map(|c| {
+                if c.len() == 1 {
+                    c.first_digit().to_string().chars().next().unwrap()
+                } else {
+                    '.'
+                }
+            })
+            .collect()
     }
 
     pub fn is_solved(&self) -> bool {
@@ -246,6 +260,25 @@ impl Sudoku {
             self.cells[qr + 2][qc + 1],
             self.cells[qr + 2][qc + 2],
         ]
+    }
+}
+
+impl std::fmt::Debug for Sudoku {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        for row in self.cells.iter() {
+            for c in row.iter() {
+                write!(f, "{:?} ", c)?;
+            }
+            writeln!(f)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:010b}", self.digits)
     }
 }
 
