@@ -16,7 +16,7 @@ fn main() -> io::Result<()> {
 
         let sudoku = sudoku_rs::Sudoku::from_line(&l).unwrap();
 
-        let solved = sudoku.solved();
+        let solved = sudoku.first_solution();
         println!(
             "#{} is solved {:?}",
             i,

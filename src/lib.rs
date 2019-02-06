@@ -111,40 +111,14 @@ impl Sudoku {
         true
     }
 
-    pub fn solved(&self) -> Option<Sudoku> {
-        // simplify the sudoku until it settles
-        let (mut solution, mut changed) = self.simplified()?;
-        while changed {
-            let (s, c) = solution.simplified()?;
-            solution = s;
-            changed = c;
+    pub fn first_solution(&self) -> Option<Sudoku> {
+        self.solutions().next()
+    }
+
+    pub fn solutions(&self) -> impl Iterator<Item = Sudoku> {
+        SolutionsIter {
+            stack: vec![self.clone()],
         }
-
-        if solution.is_solved() {
-            return Some(solution);
-        }
-
-        // process cells with fewest possible digits first as it's more probable
-        // we'll get those right
-        let (r, c, cell) = solution
-            .cells
-            .iter()
-            .enumerate()
-            .flat_map(|(r, row)| row.iter().enumerate().map(move |(c, cell)| (r, c, *cell)))
-            .filter(|(_, _, cell)| cell.len() > 1)
-            .min_by_key(|(_, _, cell)| cell.len())
-            .unwrap();
-
-        let mut candidate = solution.clone();
-        candidate.cells[r][c] = Cell::from_digit(cell.first_digit()).unwrap();
-
-        candidate.solved().or_else(|| {
-            let mut candidate = solution.clone();
-            candidate.cells[r][c] = cell;
-            candidate.cells[r][c].remove_digit(cell.first_digit());
-
-            candidate.solved()
-        })
     }
 
     /// Simplify the grid as much as possible by first removing all digits that
@@ -309,6 +283,70 @@ impl Sudoku {
     }
 }
 
+#[derive(Debug)]
+struct SolutionsIter {
+    stack: Vec<Sudoku>,
+}
+
+impl Iterator for SolutionsIter {
+    type Item = Sudoku;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let mut solution = self.stack.pop()?;
+
+            // simplify the sudoku until it settles
+            let no_solution = loop {
+                match solution.simplified() {
+                    None => {
+                        break true;
+                    }
+                    Some((s, changed)) => {
+                        solution = s;
+
+                        if !changed {
+                            break false;
+                        }
+                    }
+                }
+            };
+
+            if no_solution {
+                continue;
+            }
+
+            if solution.is_solved() {
+                return Some(solution);
+            }
+
+            // process cells with fewest possible digits first as it's more probable
+            // we'll get those right
+            let (r, c, cell) = solution
+                .cells
+                .iter()
+                .enumerate()
+                .flat_map(|(r, row)| row.iter().enumerate().map(move |(c, cell)| (r, c, *cell)))
+                .filter(|(_, _, cell)| cell.len() > 1)
+                .min_by_key(|(_, _, cell)| cell.len())
+                .unwrap();
+
+            // split the sudoku into two where one has a fixed value for the
+            // cell with least possible values and another one that doesn't have
+            // that digit as a possible digit in the same cell. Push the latter
+            // first in the stack so that it will be processed later, because
+            // I think it's more likely to find a solution in the former case.
+            let mut candidate = solution.clone();
+            candidate.cells[r][c] = cell;
+            candidate.cells[r][c].remove_digit(cell.first_digit());
+            self.stack.push(candidate);
+
+            let mut candidate = solution.clone();
+            candidate.cells[r][c] = Cell::from_digit(cell.first_digit()).unwrap();
+            self.stack.push(candidate);
+        }
+    }
+}
+
 impl std::fmt::Debug for Sudoku {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for row in self.cells.iter() {
@@ -338,19 +376,19 @@ mod tests {
             ".4....179..2..8.54..6..5..8.8..7.91..5..9..3..19.6..4.3..4..7..57.1..2..928....6.",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
 
         let sudoku = Sudoku::from_line(
             "8.2.5.7.1..7.8246..1.9.....6....18325.......91843....6.....4.2..9561.3..3.8.9.6.7",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
 
         let sudoku = Sudoku::from_line(
             "........772.3.9..1..87.5.6.5.289.....4.5.1.9.....637.5.3.9.61..2..1.7.539........",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
     }
 
     #[test]
@@ -359,19 +397,19 @@ mod tests {
             "2.6....49.37..9...1..7....6...58.9..7.5...8.4..9.62...9....4..1...3..49.41....2.8",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
 
         let sudoku = Sudoku::from_line(
             ".25..7..4..1..5.2.7...2.5..5.9..48.............75..6.9..3.7...6.4.1..7..8..2..91.",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
 
         let sudoku = Sudoku::from_line(
             "..1725....8..1...625....13..7....5.....1.6.....9....8..45....297...9..6....6483..",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
     }
 
     #[test]
@@ -380,18 +418,18 @@ mod tests {
             ".5.2.....3....5.8.96..782......3..2.7.8...1.3.4..8......164..32.7.5....1.....9.5.",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
 
         let sudoku = Sudoku::from_line(
             "8..2...46..79.....1.....5.....5...324.8...7.132...7.....6.....9.....32..28...6..3",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
 
         let sudoku = Sudoku::from_line(
             "..1725....8..1....25....13..7....5.....186.....9....8..45....29....9..6....6483..",
         )
         .unwrap();
-        assert!(sudoku.solved().unwrap().is_solved());
+        assert!(sudoku.first_solution().unwrap().is_solved());
     }
 }
