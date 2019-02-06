@@ -196,7 +196,7 @@ impl Sudoku {
                 changed = self.find_unambiguity(d, (0..9).map(|r| (r, i))) || changed;
 
                 let qr = i / 3 * 3;
-                let qc = i / 3 * 3;
+                let qc = i % 3 * 3;
                 changed =
                     self.find_unambiguity(d, (0..9).map(|i| (qr + i / 3, qc + i % 3))) || changed;
             }
@@ -432,6 +432,21 @@ mod tests {
 
         let sudoku = Sudoku::from_line(
             "..1725....8..1....25....13..7....5.....186.....9....8..45....29....9..6....6483..",
+        )
+        .unwrap();
+        assert!(sudoku.first_solution().unwrap().is_solved());
+    }
+
+    #[test]
+    fn test_solve_4() {
+        let sudoku = Sudoku::from_line(
+            "346795812258431697971862543129576438835214769764389251517948326493627185682153974",
+        )
+        .unwrap();
+        assert!(sudoku.first_solution().unwrap().is_solved());
+
+        let sudoku = Sudoku::from_line(
+            ".......12..8.3...........4.12.5..........47...6.......5.7...3.....62.......1.....",
         )
         .unwrap();
         assert!(sudoku.first_solution().unwrap().is_solved());
