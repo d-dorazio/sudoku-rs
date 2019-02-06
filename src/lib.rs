@@ -14,19 +14,23 @@ impl Cell {
 
     pub fn all_digits() -> Self {
         Cell {
-            digits: 0b1111111110,
+            digits: 0b11_1111_1110,
         }
     }
 
-    pub fn len(&self) -> u32 {
+    pub fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(self) -> u32 {
         self.digits.count_ones()
     }
 
-    pub fn first_digit(&self) -> u16 {
+    pub fn first_digit(self) -> u16 {
         15 - self.digits.leading_zeros() as u16
     }
 
-    pub fn has_digit(&self, d: u16) -> bool {
+    pub fn has_digit(self, d: u16) -> bool {
         (self.digits >> d) & 0x1 == 1
     }
 
@@ -90,7 +94,7 @@ impl Sudoku {
                 digits_set.remove_digit(d);
             }
 
-            digits_set.len() == 0
+            digits_set.is_empty()
         };
 
         let has_valid_rows = (0..9).all(|r| has_no_duplicates(self.row(r)));
@@ -157,12 +161,12 @@ impl Sudoku {
                                     changed = true;
                                 }
 
-                                if new.cells[nr][nc].len() == 0 {
+                                if new.cells[nr][nc].is_empty() {
                                     return None;
                                 }
                             }
 
-                            return Some(());
+                            Some(())
                         };
 
                         let (qr, qc) = self.quad_of(r, c);
