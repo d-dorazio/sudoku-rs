@@ -16,12 +16,13 @@ fn main() -> io::Result<()> {
 
         let sudoku = sudoku_rs::Sudoku::from_line(&l).unwrap();
 
-        let solved = sudoku.first_solution();
-        println!(
-            "#{} is solved {:?}",
-            i,
-            solved.map_or(false, |s| s.is_solved())
-        );
+        let solution = sudoku.first_solution();
+        let is_solved = solution.map_or(false, |s| s.is_solved());
+        println!("#{} is solved {:?}", i, is_solved);
+
+        if !is_solved {
+            panic!();
+        }
     }
 
     Ok(())
