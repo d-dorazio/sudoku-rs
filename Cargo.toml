@@ -8,3 +8,8 @@ edition = "2018"
 debug = true
 
 [dependencies]
+rand = "0.6"
+
+[dev-dependencies]
+proptest = "0.9.0"
+rand_xorshift = "0.1.1"

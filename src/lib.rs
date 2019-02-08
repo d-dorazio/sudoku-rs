@@ -1,3 +1,5 @@
+use rand::prelude::*;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Cell {
     digits: u16,
@@ -78,6 +80,30 @@ impl Sudoku {
                 }
             })
             .collect()
+    }
+
+    /// Generate a random solvable sudoku with the given number of free cells.
+    pub fn generate_solvable(rng: &mut impl Rng, free_cells: usize) -> Option<Sudoku> {
+        if free_cells > 81 {
+            return None;
+        }
+
+        let mut cells_to_choose = (0..81).collect::<Vec<_>>();
+        cells_to_choose.shuffle(rng);
+
+        let mut sudoku = Sudoku {
+            cells: [[Cell::all_digits(); 9]; 9],
+        }
+        .first_solution()
+        .unwrap();
+
+        for _ in 0..free_cells {
+            let i = cells_to_choose.swap_remove(rng.gen_range(0, cells_to_choose.len()));
+
+            sudoku.cells[i / 9][i % 9] = Cell::all_digits();
+        }
+
+        Some(sudoku)
     }
 
     pub fn is_solved(&self) -> bool {
@@ -372,6 +398,9 @@ impl std::fmt::Debug for Cell {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+    use rand_xorshift::XorShiftRng;
+
     use super::*;
 
     #[test]
@@ -450,5 +479,22 @@ mod tests {
         )
         .unwrap();
         assert!(sudoku.first_solution().unwrap().is_solved());
+    }
+
+    #[test]
+    fn test_solvable_solution_fails_on_too_many_free_cells() {
+        assert!(Sudoku::generate_solvable(&mut XorShiftRng::from_seed([0; 16]), 82).is_none());
+    }
+
+    proptest! {
+        #[test]
+        fn random_solvable_solutions_are_solvable(free_cells in 0..82_usize, seed: [u8; 16]) {
+            let sudoku = Sudoku::generate_solvable(
+                &mut XorShiftRng::from_seed(seed),
+                free_cells
+            ).unwrap();
+
+            prop_assert!(sudoku.first_solution().unwrap().is_solved());
+        }
     }
 }
