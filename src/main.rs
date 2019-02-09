@@ -4,6 +4,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 
+use rayon::prelude::*;
 use structopt::StructOpt;
 
 use sudoku_rs::Sudoku;
@@ -27,6 +28,14 @@ enum Cmd {
     /// time elapsed.
     #[structopt(name = "solve")]
     Solve {
+        /// Solve each sudoku in parallel.
+        #[structopt(short = "p", long = "parallel")]
+        parallel: bool,
+
+        /// Be more verbose.
+        #[structopt(short = "v", long = "verbose")]
+        verbose: bool,
+
         #[structopt(parse(from_os_str))]
         sudoku: Option<PathBuf>,
     },
@@ -40,19 +49,32 @@ fn main() -> io::Result<()> {
 
     match cmd {
         Cmd::Generate { free_cells, count } => generate_sudoku(free_cells, count, stdout),
-        Cmd::Solve { sudoku: Some(p) } => {
+        Cmd::Solve {
+            verbose,
+            parallel,
+            sudoku: Some(p),
+        } => {
             let f = File::open(p)?;
-            solve_sudoku(f, stdout)
+            solve_sudoku(parallel, f, stdout, verbose)
         }
-        Cmd::Solve { sudoku: None } => {
+        Cmd::Solve {
+            verbose,
+            parallel,
+            sudoku: None,
+        } => {
             let stdin = io::stdin();
             let stdin = stdin.lock();
-            solve_sudoku(stdin, stdout)
+            solve_sudoku(parallel, stdin, stdout, verbose)
         }
     }
 }
 
-fn solve_sudoku(r: impl Read, mut out: impl Write) -> io::Result<()> {
+fn solve_sudoku(
+    parallel: bool,
+    r: impl Read,
+    mut out: impl Write,
+    verbose: bool,
+) -> io::Result<()> {
     let buf = BufReader::new(r);
 
     let sudoku = buf
@@ -61,17 +83,38 @@ fn solve_sudoku(r: impl Read, mut out: impl Write) -> io::Result<()> {
         .collect::<Vec<_>>();
 
     let start_t = Instant::now();
-    for (i, sudoku) in sudoku.into_iter().enumerate() {
-        let solution = sudoku.first_solution();
-        let is_solved = solution.map_or(false, |s| s.is_solved());
 
-        writeln!(out, "#{} is solved {:?}", i, is_solved)?;
+    let sudoku_fn = |i: usize, s: Sudoku| {
+        let solution = s.first_solution();
+        let is_solved = solution.map_or(false, |s| s.is_solved());
 
         if !is_solved {
             panic!(
                 "all input sudoku should be solvable but #{} is not: {:?}",
-                i, sudoku
+                i, s
             );
+        }
+
+        is_solved
+    };
+
+    match (parallel, verbose) {
+        (true, _) => {
+            sudoku.into_par_iter().enumerate().for_each(|(i, s)| {
+                sudoku_fn(i, s);
+            });
+        }
+        (false, false) => {
+            for (i, sudoku) in sudoku.into_iter().enumerate() {
+                sudoku_fn(i, sudoku);
+            }
+        }
+        (false, true) => {
+            for (i, sudoku) in sudoku.into_iter().enumerate() {
+                let is_solved = sudoku_fn(i, sudoku);
+
+                writeln!(out, "#{} is solved {:?}", i, is_solved)?;
+            }
         }
     }
 
