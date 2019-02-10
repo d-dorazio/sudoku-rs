@@ -1,56 +1,24 @@
 use rand::prelude::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Cell {
-    digits: u16,
-}
-
-impl Cell {
-    pub fn from_digit(d: u16) -> Option<Self> {
-        if d == 0 || d > 9 {
-            return None;
-        }
-
-        Some(Cell { digits: 1 << d })
-    }
-
-    pub fn all_digits() -> Self {
-        Cell {
-            digits: 0b11_1111_1110,
-        }
-    }
-
-    pub fn is_empty(self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn len(self) -> u32 {
-        self.digits.count_ones()
-    }
-
-    pub fn first_digit(self) -> u16 {
-        15 - self.digits.leading_zeros() as u16
-    }
-
-    pub fn has_digit(self, d: u16) -> bool {
-        (self.digits >> d) & 0x1 == 1
-    }
-
-    // pub fn add_digit(&mut self, d: u16) {
-    //     self.digits |= 1 << d;
-    // }
-
-    pub fn remove_digit(&mut self, d: u16) {
-        self.digits &= !(1 << d);
-    }
-}
-
+/// A Sudoku grid of which we can check whether `is_solved` or not and find the
+/// `solutions` of.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Sudoku {
     cells: [[Cell; 9]; 9],
 }
 
+/// `Cell` is a bit set with all the digits that can be present in this cell. A
+/// blank cell corresponds to a cell with all the bits from 1 through 9 set,
+/// while a fixed cell only has one bit set. This representation allows to store
+/// each cell in only two bytes operations are efficient.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Cell {
+    digits: u16,
+}
+
 impl Sudoku {
+    /// Parse a sudoku from a line with blank cells represented as dots and the
+    /// digit of the cell otherwise.
     pub fn from_line(line: &str) -> Option<Self> {
         if line.chars().count() != 81 {
             return None;
@@ -68,6 +36,7 @@ impl Sudoku {
         Some(Sudoku { cells })
     }
 
+    /// Format this sudoku in the same format as `from_line`.
     pub fn to_line(&self) -> String {
         self.cells
             .iter()
@@ -83,6 +52,7 @@ impl Sudoku {
     }
 
     /// Generate a random solvable sudoku with the given number of free cells.
+    /// Return `None` if the number of free digits is greater than 81.
     pub fn generate_solvable(rng: &mut impl Rng, free_cells: usize) -> Option<Sudoku> {
         if free_cells > 81 {
             return None;
@@ -106,6 +76,8 @@ impl Sudoku {
         Some(sudoku)
     }
 
+    /// Check whether this sudoku is solved or not. This does not check if it
+    /// _solvable_.
     pub fn is_solved(&self) -> bool {
         let is_filled = self.cells.iter().all(|r| r.iter().all(|c| c.len() == 1));
         if !is_filled {
@@ -141,10 +113,12 @@ impl Sudoku {
         true
     }
 
+    /// Return a solution to this sudoku or `None` if it cannot be solved.
     pub fn first_solution(&self) -> Option<Sudoku> {
         self.solutions().next()
     }
 
+    /// Return an iterator over all the solutions for this sudoku.
     pub fn solutions(&self) -> impl Iterator<Item = Sudoku> {
         SolutionsIter {
             stack: vec![self.clone()],
@@ -264,7 +238,7 @@ impl Sudoku {
         changed
     }
 
-    pub fn row(&self, r: usize) -> [Cell; 9] {
+    fn row(&self, r: usize) -> [Cell; 9] {
         [
             self.cells[r][0],
             self.cells[r][1],
@@ -278,7 +252,7 @@ impl Sudoku {
         ]
     }
 
-    pub fn col(&self, c: usize) -> [Cell; 9] {
+    fn col(&self, c: usize) -> [Cell; 9] {
         [
             self.cells[0][c],
             self.cells[1][c],
@@ -292,11 +266,11 @@ impl Sudoku {
         ]
     }
 
-    pub fn quad_of(&self, r: usize, c: usize) -> (usize, usize) {
+    fn quad_of(&self, r: usize, c: usize) -> (usize, usize) {
         (r / 3 * 3, c / 3 * 3)
     }
 
-    pub fn quad(&self, r: usize, c: usize) -> [Cell; 9] {
+    fn quad(&self, r: usize, c: usize) -> [Cell; 9] {
         let (qr, qc) = self.quad_of(r, c);
 
         [
@@ -374,6 +348,46 @@ impl Iterator for SolutionsIter {
             candidate.cells[r][c] = Cell::from_digit(cell.first_digit()).unwrap();
             self.stack.push(candidate);
         }
+    }
+}
+
+impl Cell {
+    pub fn from_digit(d: u16) -> Option<Self> {
+        if d == 0 || d > 9 {
+            return None;
+        }
+
+        Some(Cell { digits: 1 << d })
+    }
+
+    pub fn all_digits() -> Self {
+        Cell {
+            digits: 0b11_1111_1110,
+        }
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(self) -> u32 {
+        self.digits.count_ones()
+    }
+
+    pub fn first_digit(self) -> u16 {
+        15 - self.digits.leading_zeros() as u16
+    }
+
+    pub fn has_digit(self, d: u16) -> bool {
+        (self.digits >> d) & 0x1 == 1
+    }
+
+    // pub fn add_digit(&mut self, d: u16) {
+    //     self.digits |= 1 << d;
+    // }
+
+    pub fn remove_digit(&mut self, d: u16) {
+        self.digits &= !(1 << d);
     }
 }
 
